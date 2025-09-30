@@ -13,7 +13,7 @@ BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 router = APIRouter(prefix="/clima", tags=["Clima"])
 
 @router.get("/actual")
-async def clima_actual(ciudad: str = Query(...)):
+async def clima_actual(ciudad: str = Query(...), db: Session = Depends(get_db)):
     url = f"{BASE_URL}?q={ciudad}&appid={API_KEY}&units=metric&lang=es"
 
     async with httpx.AsyncClient() as client:
@@ -40,6 +40,15 @@ async def clima_actual(ciudad: str = Query(...)):
         "nubes": f"{data['clouds'].get('all')}%" if data.get("clouds") else None,
     }
 
+    # 👇 Guardar en la base de datos
+    nuevo_historial = Historial(
+        ciudad=clima["ciudad"],
+        clima=clima["descripcion"] or "Sin descripción"
+    )
+    db.add(nuevo_historial)
+    db.commit()
+    db.refresh(nuevo_historial)
+
     return clima
 
 @router.get("/pronostico")
@@ -48,6 +57,6 @@ def clima_pronostico(ciudad: str = Query(..., description="Nombre de la ciudad")
     return weather_api.get_pronostico(ciudad, dias)
 
 @router.get("/historial")
-def historial():
-    # Aquí luego conectaremos con la base de datos
-    return {"mensaje": "Historial aún no implementado"}
+def historial(db: Session = Depends(get_db)):
+    registros = db.query(Historial).all()
+    return registros
