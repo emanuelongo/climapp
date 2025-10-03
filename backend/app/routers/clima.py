@@ -40,7 +40,6 @@ async def clima_actual(ciudad: str = Query(...), db: Session = Depends(get_db)):
         "nubes": f"{data['clouds'].get('all')}%" if data.get("clouds") else None,
     }
 
-    # 👇 Guardar en la base de datos
     nuevo_historial = Historial(
         ciudad=clima["ciudad"],
         clima=clima["descripcion"] or "Sin descripción"

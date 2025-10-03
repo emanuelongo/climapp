@@ -9,7 +9,7 @@ BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
 
 def get_clima_actual(ciudad: str):
     url = f"{BASE_URL}?q={ciudad}&appid={API_KEY}&units=metric&lang=es"
-    print("DEBUG URL:", url)  # 👈 imprime la URL exacta
+    print("DEBUG URL:", url)
     response = requests.get(url)
     print("DEBUG STATUS:", response.status_code)
     print("DEBUG RESPONSE:", response.text)
