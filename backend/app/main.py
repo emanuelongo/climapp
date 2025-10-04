@@ -8,16 +8,16 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CLIMAPP Backend")
 
-# 👇 Configuración de CORS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # URL de tu frontend
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos los métodos: GET, POST, etc.
-    allow_headers=["*"],  # Permite todos los headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Rutas
+
 app.include_router(clima.router)
 
 @app.get("/")
