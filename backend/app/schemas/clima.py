@@ -13,11 +13,12 @@ class ClimaResponse(ClimaBase):
 
 
 # models.py
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, TIMESTAMP, DECIMAL
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, TIMESTAMP, DECIMAL, Float, DateTime, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 import enum
+from datetime import datetime
 
 class UnidadEnum(enum.Enum):
     C = "C"
@@ -26,8 +27,10 @@ class UnidadEnum(enum.Enum):
 class Usuario(Base):
     __tablename__ = "USUARIO"
     id_usuario = Column(Integer, primary_key=True, index=True)
-    id_sesion = Column(String(100), nullable=False)
+    id_sesion = Column(String(100), nullable=False, unique=True, index=True)
     unidad_preferencial = Column(Enum(UnidadEnum), nullable=False, default=UnidadEnum.C)
+    
+    favoritos = relationship("Favorito", back_populates="usuario", cascade="all, delete-orphan")
 
 class Busqueda(Base):
     __tablename__ = "BUSQUEDA"
@@ -52,3 +55,20 @@ class Clima(Base):
     estado = Column(String(100))
     fecha_registro = Column(TIMESTAMP, server_default=func.now())
     id_ubicacion = Column(Integer, ForeignKey("UBICACION.id_ubicacion"))
+
+class Favorito(Base):
+    __tablename__ = "FAVORITO"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_sesion = Column(String(100), ForeignKey("USUARIO.id_sesion"), nullable=False)
+    ciudad = Column(String(255), nullable=False)
+    lat = Column(Float, nullable=False)
+    lon = Column(Float, nullable=False)
+    ultima_consulta = Column(DateTime, nullable=True)
+    fecha_agregado = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('id_sesion', 'ciudad', name='uq_favorito_sesion_ciudad'),
+    )
+    
+    usuario = relationship("Usuario", back_populates="favoritos")
