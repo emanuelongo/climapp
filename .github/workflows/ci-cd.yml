@@ -1,0 +1,88 @@
+name: CI/CD Pipeline - ClimApp
+
+on:
+  push:
+    branches:
+      - main
+      - ramadef
+  pull_request:
+
+jobs:
+  build-test-docker:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: climapp_user
+          POSTGRES_PASSWORD: climapp_pass
+          POSTGRES_DB: climapp_db
+        options: >-
+          --health-cmd="pg_isready -U climapp_user"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # === FRONTEND ===
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend/climapp
+        run: npm install
+
+      - name: Build frontend
+        working-directory: ./frontend/climapp
+        run: npm run build
+
+      # === BACKEND ===
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          pip install -r requirements.txt
+          pip install requests pytest uvicorn
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U climapp_user; do
+            echo "Esperando a que PostgreSQL esté listo..."
+            sleep 3
+          done
+
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_db
+        run: |
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8090 &
+          sleep 10
+
+      - name: Run tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_db
+        run: python test_favoritos.py
+
+      # === DOCKER ===
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/climapp:latest ./backend
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/climapp:latest
