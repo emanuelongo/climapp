@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ramadef
   pull_request:
 
 jobs:
