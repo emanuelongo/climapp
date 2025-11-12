@@ -1,0 +1,44 @@
+# === DB SERVICE ===
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: climapp
+spec:
+  selector:
+    app: db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+
+# === BACKEND SERVICE ===
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: climapp
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: NodePort   # ← Para acceder desde fuera
+
+# === FRONTEND SERVICE ===
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: climapp
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort
