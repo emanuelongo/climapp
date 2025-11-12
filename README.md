@@ -76,7 +76,7 @@ DATABASE_URL=postgresql+psycopg2://climapp_user:climapp_pass@db:5432/climapp_db
 En `frontend/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL=http://backend:8000
+NEXT_PUBLIC_API_URL=http://backend:8090
 ```
 
 ### 3. Construir e iniciar servicios con Docker Compose
