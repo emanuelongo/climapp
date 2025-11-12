@@ -75,7 +75,7 @@ jobs:
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_db
-        run: python app/test_favoritos.py
+        run: python test_favoritos.py
 
       # === DOCKER ===
       - name: Build Docker image
