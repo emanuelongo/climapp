@@ -1,88 +1,86 @@
-name: CI/CD Pipeline - ClimApp
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - 5432:5432
+    env:
+      POSTGRES_USER: climapp_user
+      POSTGRES_PASSWORD: climapp_pass
+      POSTGRES_DB: climapp_user
+    options: >-
+      --health-cmd="pg_isready -U climapp_user -d climapp_user"
+      --health-interval=10s
+      --health-timeout=5s
+      --health-retries=5
 
-on:
-  push:
-    branches:
-      - main
-      - ramadef
-  pull_request:
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-jobs:
-  build-test-docker:
-    runs-on: ubuntu-latest
+  # === FRONTEND ===
+  - name: Set up Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '20'
 
-    services:
-      postgres:
-        image: postgres:15
-        ports:
-          - 5432:5432
-        env:
-          POSTGRES_USER: climapp_user
-          POSTGRES_PASSWORD: climapp_pass
-          POSTGRES_DB: climapp_db
-        options: >-
-          --health-cmd="pg_isready -U climapp_user"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+  - name: Install frontend dependencies
+    working-directory: ./frontend/climapp
+    run: npm install
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  - name: Build frontend
+    working-directory: ./frontend/climapp
+    run: npm run build
 
-      # === FRONTEND ===
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+  # === BACKEND ===
+  - name: Set up Python
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.11'
 
-      - name: Install frontend dependencies
-        working-directory: ./frontend/climapp
-        run: npm install
+  - name: Install backend dependencies
+    working-directory: ./backend
+    run: |
+      pip install -r requirements.txt
+      pip install requests pytest uvicorn
 
-      - name: Build frontend
-        working-directory: ./frontend/climapp
-        run: npm run build
+  - name: Wait for PostgreSQL
+    run: |
+      until pg_isready -h localhost -p 5432 -U climapp_user -d climapp_user; do
+        echo "Esperando a que PostgreSQL esté listo..."
+        sleep 3
+      done
 
-      # === BACKEND ===
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+  - name: Start backend server
+    working-directory: ./backend
+    env:
+      DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_user
+    run: |
+      nohup uvicorn app.main:app --host 0.0.0.0 --port 8090 &
+      sleep 10
 
-      - name: Install backend dependencies
-        working-directory: ./backend
-        run: |
-          pip install -r requirements.txt
-          pip install requests pytest uvicorn
+  - name: Run tests
+    working-directory: ./backend
+    env:
+      DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_user
+    run: python test_favoritos.py
 
-      - name: Wait for PostgreSQL
-        run: |
-          until pg_isready -h localhost -p 5432 -U climapp_user; do
-            echo "Esperando a que PostgreSQL esté listo..."
-            sleep 3
-          done
+  # === DOCKER ===
+  - name: Determine image name
+    id: image
+    run: |
+      if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+        echo "image_name=${{ github.repository_owner }}/backend:latest" >> $GITHUB_OUTPUT
+      else
+        echo "image_name=${{ secrets.DOCKERHUB_USERNAME }}/backend:latest" >> $GITHUB_OUTPUT
+      fi
 
-      - name: Start backend server
-        working-directory: ./backend
-        env:
-          DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_db
-        run: |
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 8090 &
-          sleep 10
+  - name: Build Docker image
+    run: docker build -t ${{ steps.image.outputs.image_name }} ./backend
 
-      - name: Run tests
-        working-directory: ./backend
-        env:
-          DATABASE_URL: postgresql://climapp_user:climapp_pass@localhost:5432/climapp_db
-        run: python test_favoritos.py
+  - name: Login to DockerHub (only if secrets present)
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # === DOCKER ===
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/climapp:latest ./backend
-
-      - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Push Docker image
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/climapp:latest
+  - name: Push Docker image (only if secrets present)
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    run: docker push ${{ steps.image.outputs.image_name }}
